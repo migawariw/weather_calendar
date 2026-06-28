@@ -1,10 +1,6 @@
 from datetime import date, timedelta
 import os
 import requests
-from bs4 import BeautifulSoup
-
-PREC_NO = "44"
-BLOCK_NO = "47662"
 
 today = date.today()
 month_str = today.strftime("%Y-%m")
@@ -16,64 +12,53 @@ os.makedirs(out_dir, exist_ok=True)
 out_file = f"{out_dir}/weather-{month_str}.ics"
 
 
+# 東京（固定）
+LAT = 35.6762
+LON = 139.6503
+
+
 def fetch_weather(d):
-    url = "https://www.data.jma.go.jp/obd/stats/etrn/view/daily_s1.php"
+    url = "https://api.open-meteo.com/v1/forecast"
 
     params = {
-        "prec_no": PREC_NO,
-        "block_no": BLOCK_NO,
-        "year": d.year,
-        "month": d.month,
-        "day": d.day,
-        "view": "p1"
+        "latitude": LAT,
+        "longitude": LON,
+        "start_date": d.isoformat(),
+        "end_date": d.isoformat(),
+        "daily": "weathercode,temperature_2m_mean,precipitation_sum",
+        "timezone": "Asia/Tokyo"
     }
 
     r = requests.get(url, params=params, timeout=10)
-    r.encoding = "utf-8"
-    html = r.text
+    data = r.json()
 
-    # テーブルが存在しない日を弾く
-    if "data2_s" not in html:
+    try:
+        daily = data["daily"]
+
+        code = daily["weathercode"][0]
+        temp = daily["temperature_2m_mean"][0]
+        rain = daily["precipitation_sum"][0]
+
+        condition_map = {
+            0: "快晴",
+            1: "晴れ",
+            2: "くもり",
+            3: "曇り",
+            45: "霧",
+            61: "雨",
+            80: "にわか雨"
+        }
+
+        condition = condition_map.get(code, "不明")
+
+        return {
+            "condition": condition,
+            "avg_temp": round(temp, 1) if temp is not None else "-",
+            "precip": round(rain, 1) if rain is not None else "-"
+        }
+
+    except:
         return None
-
-    soup = BeautifulSoup(html, "lxml")
-    table = soup.find("table", class_="data2_s")
-    if not table:
-        return None
-
-    rows = table.find_all("tr")
-    if len(rows) < 2:
-        return None
-
-    header = [th.text.strip() for th in rows[0].find_all("th")]
-
-    def idx(name):
-        for i, h in enumerate(header):
-            if name in h:
-                return i
-        return None
-
-    temp_i = idx("平均気温")
-    rain_i = idx("降水量")
-
-    if temp_i is None or rain_i is None:
-        return None
-
-    values = [td.text.strip() for td in rows[1].find_all("td")]
-
-    if len(values) == 0:
-        return None
-
-    condition = values[0] if len(values) > 0 else "-"
-
-    avg_temp = values[temp_i] if temp_i < len(values) else "-"
-    precip = values[rain_i] if rain_i < len(values) else "-"
-
-    return {
-        "condition": condition,
-        "avg_temp": avg_temp,
-        "precip": precip
-    }
 
 
 def make_event(d, w):
