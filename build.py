@@ -30,43 +30,49 @@ def fetch_weather(d):
 
     r = requests.get(url, params=params, timeout=10)
     r.encoding = "utf-8"
+    html = r.text
 
-    soup = BeautifulSoup(r.text, "lxml")
-    table = soup.find("table", {"class": "data2_s"})
+    # テーブルが存在しない日を弾く
+    if "data2_s" not in html:
+        return None
+
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", class_="data2_s")
     if not table:
         return None
 
     rows = table.find_all("tr")
+    if len(rows) < 2:
+        return None
 
-    # ヘッダ取得
-    header_cells = rows[0].find_all("th")
-    headers = [h.text.strip() for h in header_cells]
+    header = [th.text.strip() for th in rows[0].find_all("th")]
 
-    def find_index(keyword):
-        for i, h in enumerate(headers):
-            if keyword in h:
+    def idx(name):
+        for i, h in enumerate(header):
+            if name in h:
                 return i
         return None
 
-    temp_i = find_index("平均気温")
-    rain_i = find_index("降水量")
+    temp_i = idx("平均気温")
+    rain_i = idx("降水量")
 
     if temp_i is None or rain_i is None:
         return None
 
-    data_cells = rows[1].find_all("td")
-    values = [c.text.strip() for c in data_cells]
+    values = [td.text.strip() for td in rows[1].find_all("td")]
 
-    # 天気（ある場合だけ）
+    if len(values) == 0:
+        return None
+
     condition = values[0] if len(values) > 0 else "-"
 
     avg_temp = values[temp_i] if temp_i < len(values) else "-"
     precip = values[rain_i] if rain_i < len(values) else "-"
 
     return {
-        "condition": condition if condition else "-",
-        "avg_temp": avg_temp if avg_temp else "-",
-        "precip": precip if precip else "-"
+        "condition": condition,
+        "avg_temp": avg_temp,
+        "precip": precip
     }
 
 
