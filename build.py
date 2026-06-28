@@ -16,7 +16,6 @@ os.makedirs(out_dir, exist_ok=True)
 out_file = f"{out_dir}/weather-{month_str}.ics"
 
 
-# 気象庁から1日分取得
 def fetch_weather(d):
     url = "https://www.data.jma.go.jp/obd/stats/etrn/view/daily_s1.php"
 
@@ -29,31 +28,45 @@ def fetch_weather(d):
         "view": "p1"
     }
 
-    r = requests.get(url, params=params)
+    r = requests.get(url, params=params, timeout=10)
     r.encoding = "utf-8"
-    soup = BeautifulSoup(r.text, "lxml")
 
+    soup = BeautifulSoup(r.text, "lxml")
     table = soup.find("table", {"class": "data2_s"})
     if not table:
         return None
 
     rows = table.find_all("tr")
 
-    def get_cell(label_index, col_index):
-        try:
-            return rows[label_index].find_all("td")[col_index].text.strip()
-        except:
-            return "-"
+    # ヘッダ取得
+    header_cells = rows[0].find_all("th")
+    headers = [h.text.strip() for h in header_cells]
 
-    # 気象庁の列構造（変わる可能性あり）
-    condition = get_cell(0, 0)   # 天気（簡易）
-    avg_temp = get_cell(6, 1)    # 平均気温
-    precip = get_cell(3, 1)      # 降水量
+    def find_index(keyword):
+        for i, h in enumerate(headers):
+            if keyword in h:
+                return i
+        return None
+
+    temp_i = find_index("平均気温")
+    rain_i = find_index("降水量")
+
+    if temp_i is None or rain_i is None:
+        return None
+
+    data_cells = rows[1].find_all("td")
+    values = [c.text.strip() for c in data_cells]
+
+    # 天気（ある場合だけ）
+    condition = values[0] if len(values) > 0 else "-"
+
+    avg_temp = values[temp_i] if temp_i < len(values) else "-"
+    precip = values[rain_i] if rain_i < len(values) else "-"
 
     return {
-        "condition": condition,
-        "avg_temp": avg_temp,
-        "precip": precip
+        "condition": condition if condition else "-",
+        "avg_temp": avg_temp if avg_temp else "-",
+        "precip": precip if precip else "-"
     }
 
 
@@ -73,7 +86,6 @@ def make_event(d, w):
     ]
 
 
-# 今月分を再生成
 start = today.replace(day=1)
 
 ics = [
