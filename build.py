@@ -33,17 +33,51 @@ def fetch_month():
 
 
 def condition(code):
-    table = {
-        0: "快晴",
-        1: "晴れ",
-        2: "くもり",
-        3: "曇り",
-        45: "霧",
-        61: "雨",
-        80: "にわか雨"
-    }
-    return table.get(code, "不明")
+    if code is None:
+        return "不明"
 
+    code = int(code)
+
+    # 晴れ系
+    if code == 0:
+        return "快晴"
+    if code in [1]:
+        return "晴れ"
+    if code in [2]:
+        return "晴れ時々くもり"
+    if code == 3:
+        return "曇り"
+
+    # 霧
+    if code in [45, 48]:
+        return "霧"
+
+    # 霧雨・小雨系
+    if 51 <= code <= 57:
+        return "霧雨"
+
+    # 雨
+    if 61 <= code <= 67:
+        return "雨"
+
+    # 雪
+    if 71 <= code <= 77:
+        return "雪"
+
+    # にわか雨・にわか雪
+    if 80 <= code <= 82:
+        return "にわか雨"
+    if 85 <= code <= 86:
+        return "にわか雪"
+
+    # 雷雨
+    if code == 95:
+        return "雷雨"
+    if code in [96, 99]:
+        return "激しい雷雨"
+
+    # ここで全部吸収（重要）
+    return f"不明({code})"
 
 daily = fetch_month()
 
